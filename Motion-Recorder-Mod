@@ -2,8 +2,9 @@ using System;
 using spaar.ModLoader;
 using UnityEngine;
 using System.IO;
+using System.Collections.Generic;
 
-namespace Motion_Painter_Mod
+namespace Motion_Recorder_Mod
 {
     public class MotionPainterMod : Mod
     {
@@ -11,11 +12,12 @@ namespace Motion_Painter_Mod
         public override string DisplayName { get { return "Motion Recorder Mod"; }}
         public override string BesiegeVersion { get { return "v0.25"; } }
         public override string Author { get { return "覅是"; }}
-        public override Version Version { get { return new Version("1.0"); }} 
+        public override Version Version { get { return new Version("1.2"); }} 
         public override bool CanBeUnloaded { get { return true; }}
+        private GameObject temp = new GameObject();
         public override void OnLoad()
         {
-            GameObject temp = new GameObject();
+            temp.name = "Motion Recorder Mod";
             temp.AddComponent<MotionPainterTemP>();
             temp.AddComponent<MotionWriter>();
             temp.AddComponent<MotionReader>();
@@ -24,6 +26,10 @@ namespace Motion_Painter_Mod
 
         public override void OnUnload()
         {
+            GameObject.Destroy(temp.GetComponent<MotionPainterTemP>());
+            GameObject.Destroy(temp.GetComponent<MotionWriter>());
+            GameObject.Destroy(temp.GetComponent<MotionReader>());
+            GameObject.Destroy(temp);
         }
         
         
@@ -32,6 +38,11 @@ namespace Motion_Painter_Mod
     public class MotionPainterTemP : MonoBehaviour
     {
         private string startPaint = "a";
+        public Color StartColor = Color.blue;
+        public Color EndColor = Color.white;
+        public float Lerp = 0.5f;
+        public float Width = 0.1f;
+        private GameObject[] HaveThisConList;
         void Start()
         {
             Commands.RegisterCommand("ResetPaintKey", (args, notUses) =>
@@ -41,9 +52,40 @@ namespace Motion_Painter_Mod
                     startPaint = args[0];
                     return "Your paint key will be " + startPaint + "!";
                 }
-                catch { return "Reset paint key failed!"; }
+                catch { return "Reset paint key failed!\r\n Example: \r\n ResetPaintKey a"; }
 
-            }, "Reset the key to activate painting.");//Night
+            }, "Reset the key to activate painting.");//Key 
+            Commands.RegisterCommand("TrailStartColor", (args, notUses) =>
+            {
+                try
+                {
+                    StartColor = new Color(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]));
+                    return "Your paint color will be  " + StartColor;
+                }
+                catch { return "Reset color failed!\r\n Example: \r\n TrailStartColor  0 1 1"; }
+
+            }, "Reset the start color of the trail.");//SC
+            Commands.RegisterCommand("TrailEndColor", (args, notUses) =>
+            {
+                try
+                {
+                    EndColor = new Color(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]));
+                    return "Your paint color will be  " + EndColor;
+                }
+                catch { return "Reset color failed!\r\n Example: \r\n TrailEndColor 1 0 1"; }
+
+            }, "Reset the end color of the trail.");//EC
+            Commands.RegisterCommand("TrailWidth", (args, notUses) =>
+            {
+                try
+                {
+                    Width = float.Parse(args[0]);
+                    return "Your Width will be  " + Width;
+                }
+                catch { return "Reset Width failed!\r\n Example: \r\n TrailWidth 1.3"; }
+
+            }, "Reset the Width of the trail.");//WD
+            
         }
         void FixedUpdate()
         {
@@ -66,10 +108,13 @@ namespace Motion_Painter_Mod
         private int 顶点数目 = 1;
         void Start()
         {
+            float width = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().Width;
+            Color StartColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().StartColor;
+            Color EndColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().EndColor;
             this.gameObject.AddComponent<LineRenderer>();
             this.gameObject.GetComponent<LineRenderer>().material = new Material(Shader.Find("Particles/Additive"));
-            this.gameObject.GetComponent<LineRenderer>().SetWidth(0.1f, 0.1f);
-            this.gameObject.GetComponent<LineRenderer>().SetColors(Color.Lerp(Color.blue, Color.white, 0.5f), Color.Lerp(Color.blue, Color.black, 0.5f));
+            this.gameObject.GetComponent<LineRenderer>().SetWidth(width, width);
+            this.gameObject.GetComponent<LineRenderer>().SetColors(StartColor,EndColor);
             this.gameObject.GetComponent<LineRenderer>().SetPosition(顶点数目 - 1, this.transform.position);
         }
         void FixedUpdate()
@@ -77,8 +122,13 @@ namespace Motion_Painter_Mod
             if (AddPiece.isSimulating)
             {
                 顶点数目++;
+                float width = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().Width;
+                Color StartColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().StartColor;
+                Color EndColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().EndColor;
                 this.gameObject.GetComponent<LineRenderer>().SetVertexCount(顶点数目);
                 this.gameObject.GetComponent<LineRenderer>().SetPosition(顶点数目 - 1, this.transform.position);
+                this.gameObject.GetComponent<LineRenderer>().SetWidth(width, width);
+                this.gameObject.GetComponent<LineRenderer>().SetColors(StartColor, EndColor);
             }
         }
     }
@@ -88,6 +138,12 @@ namespace Motion_Painter_Mod
         public int FrameCount = 0;
         public bool isRecording = false;
         public int BlockCount;
+        private Queue<string> FramesRecord = new Queue<string>();
+        private Queue<string> AllPoses = new Queue<string>();
+        private Queue<string> AllRots = new Queue<string>();
+        private Queue<string> AllBraceAPoses = new Queue<string>();
+        private Queue<string> AllBraceBPoses = new Queue<string>();
+        private Queue<string> AllBools = new Queue<string>();
 
         void Update()
         {
@@ -96,23 +152,15 @@ namespace Motion_Painter_Mod
                 if (isRecording)
                 {
                     isRecording = false;
-                    File.WriteAllText(Application.dataPath + "/SavedMachines/LatestRecord-" + FrameCount + "-" + BlockCount + "-.txt", TheFile);
-                    TheFile = "";
-                    FrameCount = 0;
-                    Debug.Log("Recorded!");
+                    SaveTheMotionRecord();
                 }
             }
             if (Input.GetKeyUp(KeyCode.F7))
             {
                 isRecording = !isRecording;
-                if (!isRecording)
-                {
-                    File.WriteAllText(Application.dataPath + "/SavedMachines/LatestRecord-" + FrameCount + "-" + BlockCount + "-.txt", TheFile);
-                    TheFile = "";
-                    FrameCount = 0;
-                    Debug.Log("Recorded!");
-                }
-                else { BlockCount = Machine.Active().SimulationMachine.childCount; }
+                if(isRecording)
+                { BlockCount = Machine.Active().SimulationMachine.childCount; }
+                else { SaveTheMotionRecord(); }
             }
             
             
@@ -120,19 +168,12 @@ namespace Motion_Painter_Mod
                 {
                     int DaLength = Machine.Active().SimulationMachine.childCount;
                     Vector3[] Pos = new Vector3[DaLength];
-                    string AllPoses = "";
                     Quaternion[] Rot = new Quaternion[DaLength];
-                    string AllRots = "";
                     Vector3[] BraceAPos = new Vector3[DaLength];
-                    string AllBraceAPoses = "";
                     Vector3[] BraceBPos = new Vector3[DaLength];
-                    string AllBraceBPoses = "";
                     bool[] IsBraceThingy = new bool[DaLength];
-                    string AllBools = "";
                     int BlockCount = 0;
                     foreach (Transform block in Machine.Active().SimulationMachine.transform)
-                    {
-                    try
                     {
                         Pos[BlockCount] = block.position;
                         Rot[BlockCount] = block.rotation;
@@ -155,21 +196,13 @@ namespace Motion_Painter_Mod
                             BraceAPos[BlockCount] = Vector3.zero;
                             BraceBPos[BlockCount] = Vector3.zero;
                         }
-                        
                         ++BlockCount;
                     }
-                    catch(Exception e) { Debug.Log(e); }
-                    }
-                AllPoses += Vector3sToString(Pos);
-                AllRots += QuaternionToString(Rot);
-                AllBools += BoolsToString(IsBraceThingy);
-                AllBraceAPoses += Vector3sToString(BraceAPos);
-                AllBraceBPoses += Vector3sToString(BraceBPos);
-                if (FrameCount != 0)
-                {
-                    TheFile += "%";
-                }
-                TheFile += "Position#" + AllPoses + "#Rotations#" + AllRots + "#Braceful#" + AllBools + "#Braceful Start Position#" + AllBraceAPoses + "#Braceful End Positionr#" + AllBraceBPoses;
+                AllPoses.Enqueue(Vector3sToString(Pos));
+                AllRots.Enqueue(QuaternionToString(Rot));
+                AllBools.Enqueue(BoolsToString(IsBraceThingy));
+                AllBraceAPoses.Enqueue(Vector3sToString(BraceAPos));
+                AllBraceBPoses.Enqueue(Vector3sToString(BraceBPos));
                         ++FrameCount;
                 }
             
@@ -214,19 +247,27 @@ namespace Motion_Painter_Mod
             }
             return FinishedText;
         }
-        /*void SaveTheMotionRecord(string TheFile)
+        void SaveTheMotionRecord()
         {
-            for (int i = 0; i < FramesRecord.Length; ++i)
+            for (int FMCT = 0; FMCT < FrameCount;++FMCT)
+            {
+                FramesRecord.Enqueue("Position#" + AllPoses.Dequeue() + "#Rotations#" + AllRots.Dequeue() + "#Braceful#" + AllBools.Dequeue() + "#Braceful Start Position#" + AllBraceAPoses.Dequeue() + "#Braceful End Positionr#" + AllBraceBPoses.Dequeue());
+            }
+            Debug.Log(FrameCount);
+            for (int i = 0; i < FramesRecord.Count; ++i)
             {
                 if (i != 0)
                 {
-                    TheFile += "\r%";
+                    TheFile += "%";
                 }
-                TheFile += "\r" + FramesRecord[i];
+                TheFile += FramesRecord.Dequeue().ToString(); 
             }
-            File.WriteAllText(Application.dataPath + "/SavedMachines/LatestRecord-" + FrameCount + "-.txt", TheFile);
+            File.WriteAllText(Application.dataPath + "/SavedMachines/LatestRecord-" + FrameCount + "-" + BlockCount + "-.txt", TheFile);
+            TheFile = "";
+            FramesRecord.Clear();
+            FrameCount = 0;
             Debug.Log("Recorded!");
-        }*/
+        }
     }
     public class MotionReader : MonoBehaviour
     {
