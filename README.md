@@ -1,5 +1,5 @@
 # Motion-Recorder-Mod
-@ Record the movements of all blocks, and draw trails if needed
+$ Record the movements of all blocks, and draw trails if needed
 # Record the movements of all blocks, and draw trails if needed 
 # ---Trail--- 
 # Press F6 to draw trails when you pointed your mouse on a thing. 
