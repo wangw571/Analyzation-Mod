@@ -12,7 +12,7 @@ namespace Motion_Recorder_Mod
         public override string DisplayName { get { return "Motion Recorder Mod"; }}
         public override string BesiegeVersion { get { return "v0.25"; } }
         public override string Author { get { return "覅是"; }}
-        public override Version Version { get { return new Version("1.2"); }} 
+        public override Version Version { get { return new Version("1.3"); }} 
         public override bool CanBeUnloaded { get { return true; }}
         private GameObject temp = new GameObject();
         public override void OnLoad()
@@ -249,24 +249,21 @@ namespace Motion_Recorder_Mod
         }
         void SaveTheMotionRecord()
         {
-            for (int FMCT = 0; FMCT < FrameCount;++FMCT)
+            Debug.Log(AllBools.Count + "Frame Count");
+            while(AllPoses.Count != 0)
             {
                 FramesRecord.Enqueue("Position#" + AllPoses.Dequeue() + "#Rotations#" + AllRots.Dequeue() + "#Braceful#" + AllBools.Dequeue() + "#Braceful Start Position#" + AllBraceAPoses.Dequeue() + "#Braceful End Positionr#" + AllBraceBPoses.Dequeue());
             }
-            Debug.Log(FrameCount);
-            for (int i = 0; i < FramesRecord.Count; ++i)
+            TheFile += FramesRecord.Dequeue();
+            while (FramesRecord.Count != 0)
             {
-                if (i != 0)
-                {
-                    TheFile += "%";
-                }
-                TheFile += FramesRecord.Dequeue().ToString(); 
+                TheFile += "%" + FramesRecord.Dequeue(); 
             }
             File.WriteAllText(Application.dataPath + "/SavedMachines/LatestRecord-" + FrameCount + "-" + BlockCount + "-.txt", TheFile);
             TheFile = "";
             FramesRecord.Clear();
             FrameCount = 0;
-            Debug.Log("Recorded!");
+            Debug.Log("Record Complete!");
         }
     }
     public class MotionReader : MonoBehaviour
