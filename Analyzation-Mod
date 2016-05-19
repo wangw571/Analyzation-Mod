@@ -1,0 +1,691 @@
+using System;
+using spaar.ModLoader;
+using UnityEngine;
+using System.IO;
+using System.Collections.Generic;
+using System.Collections;
+
+namespace Analyzation_Mod
+{
+    public class Analyzation_Mod : Mod
+    {
+        public override string Name { get { return "Analyzation_Mod"; } }
+        public override string DisplayName { get { return "Analyzation Mod"; } }
+        public override string BesiegeVersion { get { return "v0.27"; } }
+        public override string Author { get { return "覅是"; } }
+        public override Version Version { get { return new Version("2.1"); } }
+        public override bool CanBeUnloaded { get { return true; } }
+        private GameObject temp = new GameObject();
+        public override void OnLoad()
+        {
+            temp.name = "Analyzation Mod";
+            temp.AddComponent<MotionPainterTemP>();
+            temp.AddComponent<MotionWriter>();
+            temp.AddComponent<MotionReader>();
+            temp.AddComponent<MachineAnalyzer>();
+            GameObject.DontDestroyOnLoad(temp);
+        }
+
+        public override void OnUnload()
+        {
+            GameObject.Destroy(temp.GetComponent<MotionPainterTemP>());
+            GameObject.Destroy(temp.GetComponent<MotionWriter>());
+            GameObject.Destroy(temp.GetComponent<MotionReader>());
+            GameObject.Destroy(temp.GetComponent<MachineAnalyzer>());
+            GameObject.Destroy(temp);
+        }
+
+
+    }
+
+    public class MotionPainterTemP : MonoBehaviour
+    {
+        private string startPaint = "a";
+        public Color StartColor = Color.blue;
+        public Color EndColor = Color.white;
+        public Color TrailColor = Color.white;
+        public float Lerp = 0.5f;
+        public float Width = 0.1f;
+        public float TrailLastTime = 0.5f;
+        private GameObject[] HaveThisConList;
+        public Key PaintActivationKey;
+        public Key PaintTrailActivationKey;
+        void Start()
+        {
+            PaintActivationKey = Keybindings.AddKeybinding("Draw Line", new Key(KeyCode.LeftControl, KeyCode.P));
+            PaintTrailActivationKey = Keybindings.AddKeybinding("Draw Trail", new Key(KeyCode.LeftAlt, KeyCode.P));
+            Commands.RegisterCommand("LineStartColor", (args, notUses) =>
+            {
+                try
+                {
+                    StartColor = new Color(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]));
+                    return "Your paint color will be  " + StartColor;
+                }
+                catch { return "Reset color failed!\r\n Example: \r\n TrailStartColor  0 1 1"; }
+
+            }, "Reset the start color of the trail.");//SC
+            Commands.RegisterCommand("LineEndColor", (args, notUses) =>
+            {
+                try
+                {
+                    EndColor = new Color(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]));
+                    return "Your paint color will be  " + EndColor;
+                }
+                catch { return "Reset color failed!\r\n Example: \r\n TrailEndColor 1 0 1"; }
+
+            }, "Reset the end color of the trail.");//EC
+            Commands.RegisterCommand("TrailColor", (args, notUses) =>
+            {
+                try
+                {
+                    TrailColor = new Color(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]));
+                    return "Your trail color will be  " + TrailColor;
+                }
+                catch { return "Reset color failed!\r\n Example: \r\n TrailColor 1 0 1"; }
+
+            }, "Reset the end color of the trail.");//TC
+            Commands.RegisterCommand("TrailWidth", (args, notUses) =>
+            {
+                try
+                {
+                    Width = float.Parse(args[0]);
+                    return "Your Width will be  " + Width;
+                }
+                catch { return "Reset Width failed!\r\n Example: \r\n TrailWidth 1.3"; }
+
+            }, "Reset the Width of the trail.");//WD
+            Commands.RegisterCommand("TrailLastTime", (args, notUses) =>
+            {
+                try
+                {
+                    TrailLastTime = float.Parse(args[0]);
+                    return "Your trail will last " + TrailLastTime + " seconds. ";
+                }
+                catch { return "Reset Width failed!\r\n Example: \r\n TrailLastTime 1.3"; }
+
+            }, "Reset the Width of the trail.");//TL time
+
+        }
+        void Update()
+        {
+            if ((Input.GetKeyUp(KeyCode.F6) && !Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl)) ^ PaintActivationKey.Pressed())
+            {
+                RaycastHit hitt;
+                if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out hitt, float.PositiveInfinity))
+                {
+                    if (!hitt.transform.gameObject.GetComponent<MotionPainterLineScript>())
+                    {
+                        hitt.transform.gameObject.AddComponent<MotionPainterLineScript>();
+                        //Debug.Log(hitt.transform.gameObject.GetComponent<ConfigurableJoint>().linearLimitSpring.spring + hitt.transform.gameObject.name + Physics.gravity);
+                    }
+                }
+            }
+            if (new Key(KeyCode.LeftControl, KeyCode.F6).Pressed() ^ new Key(KeyCode.RightControl, KeyCode.F6).Pressed() ^ PaintTrailActivationKey.Pressed())
+            {
+                RaycastHit hitt;
+                if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out hitt, float.PositiveInfinity))
+                {
+                    if (!hitt.transform.gameObject.GetComponent<MotionPainterTrailScript>())
+                    {
+                        hitt.transform.gameObject.AddComponent<MotionPainterTrailScript>();
+                        //Debug.Log(hitt.transform.gameObject.GetComponent<ConfigurableJoint>().linearLimitSpring.spring + hitt.transform.gameObject.name + Physics.gravity);
+                    }
+                }
+            }
+        }
+    }
+    public class MotionPainterLineScript : MonoBehaviour
+    {
+        private int 顶点数目 = 1;
+        void Start()
+        {
+            float width = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().Width;
+            Color StartColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().StartColor;
+            Color EndColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().EndColor;
+            this.gameObject.AddComponent<LineRenderer>();
+            this.gameObject.GetComponent<LineRenderer>().material = new Material(Shader.Find("Particles/Additive"));
+            this.gameObject.GetComponent<LineRenderer>().SetWidth(width, width);
+            this.gameObject.GetComponent<LineRenderer>().SetColors(StartColor, EndColor);
+            this.gameObject.GetComponent<LineRenderer>().SetPosition(0, this.transform.position);
+            this.gameObject.GetComponent<LineRenderer>().SetPosition(顶点数目 - 1, this.transform.position);
+        }
+        void FixedUpdate()
+        {
+            if (AddPiece.isSimulating)
+            {
+                顶点数目++;
+                float width = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().Width;
+                Color StartColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().StartColor;
+                Color EndColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().EndColor;
+                this.gameObject.GetComponent<LineRenderer>().SetVertexCount(顶点数目);
+                this.gameObject.GetComponent<LineRenderer>().SetPosition(顶点数目 - 1, this.transform.position);
+                this.gameObject.GetComponent<LineRenderer>().SetWidth(width, width);
+                this.gameObject.GetComponent<LineRenderer>().SetColors(StartColor, EndColor);
+            }
+        }
+    }
+    public class MotionPainterTrailScript : MonoBehaviour
+    {
+        void Start()
+        {
+            float width = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().Width;
+            float TrailLastTime = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().TrailLastTime;
+            Color TrailColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().TrailColor;
+            this.gameObject.AddComponent<TrailRenderer>();
+            this.gameObject.GetComponent<TrailRenderer>().material = new Material(Shader.Find("Particles/Additive"));
+            this.gameObject.GetComponent<TrailRenderer>().startWidth = width;
+            this.gameObject.GetComponent<TrailRenderer>().endWidth = width;
+            this.gameObject.GetComponent<TrailRenderer>().material.color = TrailColor;
+            this.gameObject.GetComponent<TrailRenderer>().time = TrailLastTime;
+        }
+        void FixedUpdate()
+        {
+            if (AddPiece.isSimulating)
+            {
+                float width = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().Width;
+                float TrailLastTime = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().TrailLastTime;
+                Color TrailColor = GameObject.Find("Motion Recorder Mod").GetComponent<MotionPainterTemP>().TrailColor;
+                this.gameObject.GetComponent<TrailRenderer>().startWidth = width;
+                this.gameObject.GetComponent<TrailRenderer>().endWidth = width;
+                this.gameObject.GetComponent<TrailRenderer>().material.color = TrailColor;
+                this.gameObject.GetComponent<TrailRenderer>().time = TrailLastTime;
+            }
+        }
+    }
+    public class MotionWriter : MonoBehaviour
+    {
+        private string TheFile = "";
+        public int FrameCount = 0;
+        public bool isRecording = false;
+        public int BlockCount;
+        private Queue<string> FramesRecord = new Queue<string>();
+        private Queue<string> AllPoses = new Queue<string>();
+        private Queue<string> AllRots = new Queue<string>();
+        private Queue<string> AllBraceAPoses = new Queue<string>();
+        private Queue<string> AllBraceBPoses = new Queue<string>();
+        private Queue<string> AllBraceBools = new Queue<string>();
+        private Queue<string> AllFireBools = new Queue<string>();
+        private Queue<string> AllBombBools = new Queue<string>();
+        private Queue<string> AllExplodedBools = new Queue<string>();
+        private Queue<string> SecondaryRecord = new Queue<string>();
+        private Queue<string> MinutaryRecord = new Queue<string>();
+
+        void Start()
+        {
+            StartCoroutine(RecordActivePerSecond());
+            StartCoroutine(RecordActivePerMinute());
+        }
+
+        IEnumerator RecordActivePerSecond()
+        {
+            yield return new WaitForSeconds(1);
+
+            if (isRecording)
+            {
+                while (AllPoses.Count != 0)
+                {
+                    FramesRecord.Enqueue(
+                        "Position#" + AllPoses.Dequeue() +
+                        "#Rotations#" + AllRots.Dequeue() +
+                        "#Braceful#" + AllBraceBools.Dequeue() +
+                        "#Braceful Start Position#" + AllBraceAPoses.Dequeue() +
+                        "#Braceful End Position#" + AllBraceBPoses.Dequeue() +
+                        "#Fire Status#" + AllFireBools.Dequeue() +
+                        "#Is this a bomb#" + AllBombBools.Dequeue() +
+                        "#Is this exploding#" + AllExplodedBools.Dequeue()
+                        );
+                }
+                SecondaryRecord.Enqueue(SaveAStageMotionRecord(FramesRecord, '%'));
+            }
+            StartCoroutine(RecordActivePerSecond());
+        }
+        IEnumerator RecordActivePerMinute()
+        {
+            yield return new WaitForSeconds(60);
+            if (isRecording)
+            {
+                MinutaryRecord.Enqueue(SaveAStageMotionRecord(SecondaryRecord, '%'));
+                SecondaryRecord.Clear();
+            }
+            StartCoroutine(RecordActivePerMinute());
+        }
+
+        void Update()
+        {
+            if (!AddPiece.isSimulating)
+            {
+                if (isRecording)
+                {
+                    isRecording = false;
+                    SaveTheMotionRecord();
+                }
+            }
+            if (Input.GetKeyUp(KeyCode.F7))
+            {
+                isRecording = !isRecording;
+                if (isRecording)
+                { BlockCount = Machine.Active().SimulationMachine.childCount; }
+                else { SaveTheMotionRecord(); }
+            }
+
+
+            if (isRecording)
+            {
+                int DaLength = Machine.Active().SimulationMachine.childCount;
+                Vector3[] Pos = new Vector3[DaLength];
+                Quaternion[] Rot = new Quaternion[DaLength];
+                Vector3[] BraceAPos = new Vector3[DaLength];
+                Vector3[] BraceBPos = new Vector3[DaLength];
+                bool[] IsBraceThingy = new bool[DaLength];
+                bool[] IsOnFire = new bool[DaLength];
+                bool[] IsAnExplosive = new bool[DaLength];
+                bool[] HasExploded = new bool[DaLength];
+                int[] PreviousBlockID = new int[DaLength];
+                int BlockCount = 0;
+                foreach (Transform block in Machine.Active().SimulationMachine.transform)
+                {
+                    Pos[BlockCount] = block.position;
+                    Rot[BlockCount] = block.rotation;
+                    try
+                    {
+                        block.FindChild("BraceA").gameObject.name = "BraceA";
+                        IsBraceThingy[BlockCount] = true;
+                    }
+                    catch
+                    {
+                        IsBraceThingy[BlockCount] = false;
+                    }
+                    if (IsBraceThingy[BlockCount])
+                    {
+                        BraceAPos[BlockCount] = block.Find("BraceA").transform.position;
+                        BraceBPos[BlockCount] = block.Find("BraceB").transform.position;
+                    }
+                    else
+                    {
+                        BraceAPos[BlockCount] = Vector3.zero;
+                        BraceBPos[BlockCount] = Vector3.zero;
+                    }
+                    try
+                    {
+                        IsOnFire[BlockCount] = block.GetComponentInChildren<FireController>().onFire;
+                    }
+                    catch { IsOnFire[BlockCount] = false; }
+
+                    IsAnExplosive[BlockCount] = (block.GetComponent<ExplodeOnCollide>() ^ block.GetComponent<TimedRocket>() ^ block.GetComponent<ControllableBomb>());
+                    
+                    if(FrameCount>2)
+                    {
+                        HasExploded[BlockCount] = PreviousBlockID[BlockCount] != block.GetComponent<BlockInfo>().ID;
+                        PreviousBlockID[BlockCount] = block.GetComponent<BlockInfo>().ID;
+                    }
+
+                    ++BlockCount;
+                }
+                AllPoses.Enqueue(Vector3sToString(Pos));
+                AllRots.Enqueue(QuaternionToString(Rot));
+                AllBraceBools.Enqueue(BoolsToString(IsBraceThingy));
+                AllBraceAPoses.Enqueue(Vector3sToString(BraceAPos));
+                AllBraceBPoses.Enqueue(Vector3sToString(BraceBPos));
+                AllFireBools.Enqueue(BoolsToString(IsOnFire));
+                AllBombBools.Enqueue(BoolsToString(IsAnExplosive));
+                AllExplodedBools.Enqueue(BoolsToString(HasExploded));
+                ++FrameCount;
+            }
+
+        }
+
+
+        string SaveAStageMotionRecord(Queue<string> Enrolling, char 间隔符)
+        {
+            string ForReturn = "";
+            ForReturn += (Enrolling.Dequeue());
+            while (Enrolling.Count != 0)
+            {
+                ForReturn += (间隔符 + Enrolling.Dequeue());
+            }
+            return ForReturn;
+        }
+        void SaveTheMotionRecord()
+        {
+            while (AllPoses.Count != 0)
+            {
+                FramesRecord.Enqueue(
+                    "Position#" + AllPoses.Dequeue() + 
+                    "#Rotations#" + AllRots.Dequeue() + 
+                    "#Braceful#" + AllBraceBools.Dequeue() + 
+                    "#Braceful Start Position#" + AllBraceAPoses.Dequeue() + 
+                    "#Braceful End Position#" + AllBraceBPoses.Dequeue() + 
+                    "#Fire Status#" + AllFireBools.Dequeue() + 
+                    "#Is this a bomb#" + AllBombBools.Dequeue() + 
+                    "#Is this exploding#" + AllExplodedBools.Dequeue()
+                    );
+            }
+            SecondaryRecord.Enqueue(SaveAStageMotionRecord(FramesRecord, '%'));
+            MinutaryRecord.Enqueue(SaveAStageMotionRecord(SecondaryRecord, '%'));
+            Debug.Log(FrameCount + " - Frame Count");
+            TheFile += MinutaryRecord.Dequeue();
+            while (MinutaryRecord.Count != 0)
+            {
+                TheFile += "%" + MinutaryRecord.Dequeue();
+            }
+            File.WriteAllText(Application.dataPath + "/SavedMachines/LatestRecord-" + FrameCount + "-" + BlockCount + "-.txt", TheFile);
+
+            TheFile = "";
+            FramesRecord.Clear();
+            SecondaryRecord.Clear();
+            MinutaryRecord.Clear();
+            FrameCount = 0;
+            Debug.Log("Record Complete!");
+        }
+        public string Vector3sToString(Vector3[] VCT3s)
+        {
+            string FinishedText = "";
+            for (int i = 0; i < VCT3s.Length; ++i)
+            {
+                if (i != 0)
+                {
+                    FinishedText += "|";
+                }
+                FinishedText += VCT3s[i].x + "," + VCT3s[i].y + "," + VCT3s[i].z;
+            }
+            return FinishedText;
+        }
+        public string QuaternionToString(Quaternion[] QUTs)
+        {
+            string FinishedText = "";
+            for (int i = 0; i < QUTs.Length; ++i)
+            {
+                if (i != 0)
+                {
+                    FinishedText += "|";
+                }
+                FinishedText += QUTs[i].w + "," + QUTs[i].x + "," + QUTs[i].y + "," + QUTs[i].z;
+            }
+            return FinishedText;
+        }
+        public string BoolsToString(bool[] Bs)
+        {
+            string FinishedText = "";
+            for (int i = 0; i < Bs.Length; ++i)
+            {
+                if (i != 0)
+                {
+                    FinishedText += "|";
+                }
+                FinishedText += Bs[i].ToString();
+            }
+            return FinishedText;
+        }
+    }
+    public class MotionReader : MonoBehaviour
+    {
+        private string[] FramesRecord;
+        private string TheFileName;
+        public float FrameCount = -1;
+        public int LoadedFrameCount = 0;
+        public bool isReplaying = false;
+        public bool isReplayingInSpecialMode = false;
+        public float ReplaySpeed = 1;
+
+
+        void Start()
+        {
+            Commands.RegisterCommand("RPP", (args, notUses) =>
+            {
+                try
+                {
+                    if (AddPiece.isSimulating)
+                    {
+                        TheFileName = args[0];
+                        LoadedFrameCount = int.Parse(args[0].Split('-')[1].Trim());
+                        FrameCount = 0;
+                        if (int.Parse(args[0].Split('-')[2].Trim()) == Machine.Active().SimulationMachine.childCount)
+                        {
+                            FramesRecord = ReadTheRecord();
+                            isReplaying = true;
+                            return "Replaying!";
+                        }
+                        else { return "Not Enough Blocks!" + Machine.Active().SimulationMachine.childCount; }
+
+                    }
+                    else { return "The replay must be under simulation mode!"; }
+                }
+                catch { return "Reading File Failed! Please ensure that your file has the frame count and block count!"; }
+
+            }, "Replay the record");//Replay
+
+            Commands.RegisterCommand("RPS", (args, notUses) =>
+            {
+                try
+                {
+                    if (AddPiece.isSimulating)
+                    {
+                        TheFileName = args[0];
+                        LoadedFrameCount = int.Parse(args[0].Split('-')[1].Trim());
+                        FrameCount = 0;
+                        if (int.Parse(args[0].Split('-')[2].Trim()) == Machine.Active().SimulationMachine.childCount)
+                        {
+                            FramesRecord = ReadTheRecord();
+                            Debug.Log(FramesRecord.Length);
+                            isReplayingInSpecialMode = true;
+                            return "Replaying in Special Mode!";
+                        }
+                        else { return "Not Enough Blocks!" + Machine.Active().SimulationMachine.childCount; }
+
+                    }
+                    else { return "The replay must be under simulation mode!"; }
+                }
+                catch { return "Reading File Failed! Please ensure that your file has the frame count and block count!"; }
+
+            }, "Replay the record in special mode. Use + and - to change the moment.");//Replay
+
+            Commands.RegisterCommand("ReplaySpeed", (args, notUses) =>
+            {
+                try
+                {
+                    ReplaySpeed = float.Parse(args[0]);
+                    return "The replay speed will be " + ReplaySpeed;
+                }
+                catch { return "Reset Replay speed Failed! Please ensure that your speed value is validate!"; }
+
+            }, "Speed to replay the record in special mode.");
+
+            Commands.RegisterCommand("StopRP", (args, notUses) =>
+            {
+                try
+                {
+                    if (isReplayingInSpecialMode ^ isReplaying)
+                    {
+                        isReplayingInSpecialMode = false;
+                        isReplaying = false;
+                        FrameCount = 0;
+                        foreach (Transform block in Machine.Active().SimulationMachine)
+                        {
+                            block.GetComponent<Rigidbody>().isKinematic = false;
+                        }
+                        return "Replaying has been stopped";
+                    }
+                    else { return "No need tp stop replaying"; }
+                }
+                catch { return "Error!"; }
+
+            }, "Stop Replaying");
+        }
+        void Update()
+        {
+            if (!AddPiece.isSimulating) { isReplaying = false; isReplayingInSpecialMode = false; }
+            if (Input.GetKey(KeyCode.KeypadPlus) && isReplayingInSpecialMode) { FrameCount += ReplaySpeed; }
+            if (Input.GetKey(KeyCode.KeypadMinus) && isReplayingInSpecialMode) { FrameCount -= ReplaySpeed; }
+            try
+            {
+                if (FrameCount == FramesRecord.Length && FramesRecord.Length != 0 && !isReplayingInSpecialMode)
+                { isReplaying = false; Debug.Log("Replay Done!"); }
+            }
+            catch { }
+            if (FrameCount < 0) { FrameCount = 0; }
+
+            if (isReplaying ^ isReplayingInSpecialMode)
+            {
+                if (FrameCount < FramesRecord.Length - 1)
+                {
+                    string[] thisFrame = FramesRecord[(int)FrameCount + 1].Split('#');
+                    Debug.Log(thisFrame.Length);
+                    string[] Pos = thisFrame[1].Split('|');
+                    string[] Rot = thisFrame[3].Split('|');
+                    string[] IsBraceThingy = thisFrame[5].Split('|');
+                    string[] BraceAPos = thisFrame[7].Split('|');
+                    string[] BraceBPos = thisFrame[9].Split('|');
+                    string[] OnFire = thisFrame[11].Split('|');
+                    string[] Explo = thisFrame[15].Split('|');
+
+                    int NowBlock = 0;
+                    foreach (Transform block in Machine.Active().SimulationMachine)
+                    {
+                        try
+                        {
+                            block.GetComponent<Rigidbody>().isKinematic = true;
+                            block.position = StringToVector3(Pos[NowBlock]);
+                            block.rotation = StringToQuaternion(Rot[NowBlock]);
+                            if (StringToBool(IsBraceThingy[NowBlock]))
+                            {
+                                block.Find("BraceA").transform.position = StringToVector3(BraceAPos[NowBlock]);
+                                block.Find("BraceB").transform.position = StringToVector3(BraceBPos[NowBlock]);
+                            }
+                            if (StringToBool(OnFire[NowBlock])) block.GetComponent<FireTag>().Ignite();
+                            if (StringToBool(Explo[NowBlock]))
+                            {
+                                if(block.GetComponent<ExplodeOnCollide>())block.GetComponent<FireTag>().Ignite();
+                                if (block.GetComponent<ControllableBomb>()) { block.GetComponent<ControllableBomb>().Explode(); block.GetComponent<FireTag>().Ignite(); }
+                                if (block.GetComponent<TimedRocket>()) block.GetComponent<TimedRocket>().Explode(0);
+                            }
+                        }
+                        catch { }
+                        ++NowBlock;
+                    }
+                    if (isReplaying)
+                    {
+                        ++FrameCount;
+                    }
+                }
+                else
+                {
+                    Debug.Log("Da end has been reached (～￣▽￣)→))*￣▽￣*)o");
+                    FrameCount = FramesRecord.Length - 2;
+                }
+            }
+            else { FrameCount = 0; }
+
+        }
+
+        public Vector3 StringToVector3(String VCT3s)
+        {
+            Vector3 Vct3;
+            string[] xyz = VCT3s.Split(',');
+            Vct3 = new Vector3(float.Parse(xyz[0]), float.Parse(xyz[1]), float.Parse(xyz[2]));
+            return Vct3;
+        }
+        public Quaternion StringToQuaternion(String QUTs)
+        {
+            Quaternion Qut;
+            string[] wxyz = QUTs.Split((','));
+            Qut = new Quaternion(float.Parse(wxyz[1]), float.Parse(wxyz[2]), float.Parse(wxyz[3]), float.Parse(wxyz[0]));
+            return Qut;
+        }
+        public bool StringToBool(String Bs)
+        {
+            bool boolbool;
+            boolbool = bool.Parse(Bs);
+            return boolbool;
+        }
+        public string[] ReadTheRecord()
+        {
+            if (TheFileName != null)
+            {
+                return File.ReadAllText(Application.dataPath + "/SavedMachines/" + TheFileName).Trim().Split('%');
+            }
+            else
+            {
+                return File.ReadAllText(Application.dataPath + "/SavedMachines/LatestRecord.txt").Trim().Split('%');
+            }
+        }
+    }
+    public class MachineAnalyzer : MonoBehaviour
+    {
+        public float XMultiplyer;
+        public float YMultiplyer;
+        public float ZMultiplyer;
+        public float PXMultiplyer;
+        public float PYMultiplyer;
+        public float PZMultiplyer;
+        public Key XAxisPositiveKey;
+        public Key XAxisNegativeKey;
+        public Key YAxisPositiveKey;
+        public Key YAxisNegativeKey;
+        public Key ZAxisPositiveKey;
+        public Key ZAxisNegativeKey;
+
+        void Start()
+        {
+            XAxisPositiveKey = Keybindings.AddKeybinding("X + ", new Key(KeyCode.KeypadPlus, KeyCode.Keypad1));
+            XAxisNegativeKey = Keybindings.AddKeybinding("X - ", new Key(KeyCode.KeypadMinus, KeyCode.Keypad1));
+            YAxisPositiveKey = Keybindings.AddKeybinding("Y + ", new Key(KeyCode.KeypadPlus, KeyCode.Keypad2));
+            YAxisNegativeKey = Keybindings.AddKeybinding("Y - ", new Key(KeyCode.KeypadMinus, KeyCode.Keypad2));
+            ZAxisPositiveKey = Keybindings.AddKeybinding("Z + ", new Key(KeyCode.KeypadPlus, KeyCode.Keypad3));
+            ZAxisNegativeKey = Keybindings.AddKeybinding("Z - ", new Key(KeyCode.KeypadMinus, KeyCode.Keypad3));
+            XMultiplyer = 1;
+            YMultiplyer = 1;
+            ZMultiplyer = 1;
+            PXMultiplyer = 1;
+            PYMultiplyer = 1;
+            PZMultiplyer = 1;
+        }
+
+        void FixedUpdate()
+        {
+            if (!AddPiece.isSimulating && GameObject.Find("Building Machine"))
+            {
+
+                if (XAxisPositiveKey.IsDown())
+                {
+                    XMultiplyer *= 1.07f;
+                }
+                if (YAxisPositiveKey.IsDown())
+                {
+                    YMultiplyer *= 1.07f;
+                }
+                if (ZAxisPositiveKey.IsDown())
+                {
+                    ZMultiplyer *= 1.07f;
+                }
+                if (XAxisNegativeKey.IsDown())
+                {
+                    XMultiplyer = Mathf.Max(1, XMultiplyer / 1.07f);
+                }
+                if (YAxisNegativeKey.IsDown())
+                {
+                    YMultiplyer = Mathf.Max(1, YMultiplyer / 1.07f);
+                }
+                if (ZAxisNegativeKey.IsDown())
+                {
+                    ZMultiplyer = Mathf.Max(1, ZMultiplyer / 1.07f);
+                }
+
+                try
+                {
+                    foreach (Transform tr in Machine.Active().BuildingMachine)
+                    {
+                        tr.localPosition = new Vector3(
+                            (tr.localPosition.x / PXMultiplyer) * XMultiplyer,
+                            (tr.localPosition.y / PYMultiplyer) * YMultiplyer,
+                            (tr.localPosition.z / PZMultiplyer) * ZMultiplyer
+                            );
+                    }
+                    PXMultiplyer = XMultiplyer;
+                    PYMultiplyer = YMultiplyer;
+                    PZMultiplyer = ZMultiplyer;
+                }
+                catch { }
+            }
+        }
+    }
+}
