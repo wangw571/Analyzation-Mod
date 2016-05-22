@@ -16,7 +16,7 @@
 
 
 #---Record--- 
-*Press F7 once to start recording. Record must be activated under simulation mode. 
+#Press F7 once to start recording. Record must be activated under simulation mode. 
 #Press F7 after the first time to stop recording. The recorl will be named as LatestRecord-Frame Count-Block Count-.txt". There will be a lag after stop recording in order to save the record, please wait patiently till the Console write "Record Complete!".
 #----The file name before the first "-" can be edited. 
 #Press Space can also stop the recording like ^ 
