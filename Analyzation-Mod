@@ -11,9 +11,9 @@ namespace Analyzation_Mod
     {
         public override string Name { get { return "Analyzation_Mod"; } }
         public override string DisplayName { get { return "Analyzation Mod"; } }
-        public override string BesiegeVersion { get { return "v0.27"; } }
+        public override string BesiegeVersion { get { return "v0.45a"; } }
         public override string Author { get { return "覅是"; } }
-        public override Version Version { get { return new Version("2.3"); } }
+        public override Version Version { get { return new Version("2.8"); } }
         public override bool CanBeUnloaded { get { return true; } }
         private GameObject temp = new GameObject();
         public override void OnLoad()
@@ -43,7 +43,7 @@ namespace Analyzation_Mod
         private string startPaint = "a";
         public Color StartColor = Color.blue;
         public Color EndColor = Color.white;
-        public Color TrailColor = new Color(0,0,0,1);
+        public Color TrailColor = new Color(0, 0, 0, 1);
         public float Lerp = 0.5f;
         public float Width = 0.1f;
         public float TrailLastTime = 0.5f;
@@ -60,7 +60,7 @@ namespace Analyzation_Mod
                 try
                 {
                     StartColor = new Color(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]));
-                    return "Your paint color will be  " + StartColor;
+                    return "Your paint color will be " + StartColor;
                 }
                 catch { return "Reset color failed!\r\n Example: \r\n TrailStartColor  0 1 1"; }
 
@@ -70,7 +70,7 @@ namespace Analyzation_Mod
                 try
                 {
                     EndColor = new Color(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]));
-                    return "Your paint color will be  " + EndColor;
+                    return "Your paint color will be " + EndColor;
                 }
                 catch { return "Reset color failed!\r\n Example: \r\n TrailEndColor 1 0 1"; }
 
@@ -80,7 +80,7 @@ namespace Analyzation_Mod
                 try
                 {
                     TrailColor = new Color(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]));
-                    return "Your trail color will be  " + TrailColor;
+                    return "Your trail color will be " + TrailColor;
                 }
                 catch { return "Reset color failed!\r\n Example: \r\n TrailColor 1 0 1"; }
 
@@ -90,7 +90,7 @@ namespace Analyzation_Mod
                 try
                 {
                     Width = float.Parse(args[0]);
-                    return "Your Width will be  " + Width;
+                    return "Your trail width will be " + Width;
                 }
                 catch { return "Reset Width failed!\r\n Example: \r\n TrailWidth 1.3"; }
 
@@ -112,30 +112,28 @@ namespace Analyzation_Mod
         }
         void Update()
         {
-            if ((Input.GetKeyUp(KeyCode.F6) && !Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl)) ^ PaintActivationKey.Pressed())
+            if ((Input.GetKeyUp(KeyCode.F6) && !Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl)) || PaintActivationKey.Pressed())
             {
-                RaycastHit hitt;
-                if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out hitt, float.PositiveInfinity))
+                foreach (RaycastHit hitt in Physics.RaycastAll(Camera.main.ScreenPointToRay(Input.mousePosition)))
                 {
-                    if (!hitt.transform.gameObject.GetComponent<MotionPainterLineScript>())
+                    if (hitt.transform.position != this.transform.position && hitt.collider.attachedRigidbody != null && !hitt.collider.isTrigger && !hitt.transform.GetComponent<MotionPainterLineScript>())
                     {
                         hitt.transform.gameObject.AddComponent<MotionPainterLineScript>();
                         //Debug.Log(hitt.transform.gameObject.GetComponent<ConfigurableJoint>().linearLimitSpring.spring + hitt.transform.gameObject.name + Physics.gravity);
                     }
                 }
             }
-            if (new Key(KeyCode.LeftControl, KeyCode.F6).Pressed() ^ new Key(KeyCode.RightControl, KeyCode.F6).Pressed() ^ PaintTrailActivationKey.Pressed())
+            if (new Key(KeyCode.LeftControl, KeyCode.F6).Pressed() || new Key(KeyCode.RightControl, KeyCode.F6).Pressed() || PaintTrailActivationKey.Pressed())
             {
-                RaycastHit hitt;
-                if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out hitt, float.PositiveInfinity))
+                foreach (RaycastHit hitt in Physics.RaycastAll(Camera.main.ScreenPointToRay(Input.mousePosition)))
                 {
-                    if (!hitt.transform.gameObject.GetComponent<MotionPainterTrailScript>())
+                    if (hitt.transform.position != this.transform.position && hitt.collider.attachedRigidbody != null && !hitt.collider.isTrigger && !hitt.transform.GetComponent<MotionPainterTrailScript>())
                     {
                         hitt.transform.gameObject.AddComponent<MotionPainterTrailScript>();
-                        //Debug.Log(hitt.transform.gameObject.GetComponent<ConfigurableJoint>().linearLimitSpring.spring + hitt.transform.gameObject.name + Physics.gravity);
                     }
                 }
             }
+
         }
     }
     public class MotionPainterLineScript : MonoBehaviour
@@ -156,7 +154,7 @@ namespace Analyzation_Mod
         }
         void FixedUpdate()
         {
-            if (AddPiece.isSimulating)
+            if (StatMaster.isSimulating)
             {
                 顶点数目++;
                 MotionPainterTemP keeper = GameObject.Find("Analyzation Mod").GetComponent<MotionPainterTemP>();
@@ -172,31 +170,33 @@ namespace Analyzation_Mod
     }
     public class MotionPainterTrailScript : MonoBehaviour
     {
+        private MotionPainterTemP keeper = GameObject.Find("Analyzation Mod").GetComponent<MotionPainterTemP>();
+        public float width;
+        public float TrailLastTime;
+        public Color TrailColor;
         void Start()
         {
-            MotionPainterTemP keeper = GameObject.Find("Analyzation Mod").GetComponent<MotionPainterTemP>();
-            float width = keeper.Width;
-            float TrailLastTime = keeper.TrailLastTime;
-            Color TrailColor = keeper.TrailColor;
+            width = keeper.Width;
+            TrailLastTime = keeper.TrailLastTime;
+            TrailColor = keeper.TrailColor;
             this.gameObject.AddComponent<TrailRenderer>();
             this.gameObject.GetComponent<TrailRenderer>().material = new Material(Shader.Find("Particles/Additive"));
             this.gameObject.GetComponent<TrailRenderer>().material.mainTexture = keeper.texture;
             this.gameObject.GetComponent<TrailRenderer>().startWidth = width;
             this.gameObject.GetComponent<TrailRenderer>().endWidth = width;
-            this.gameObject.GetComponent<TrailRenderer>().material.color = TrailColor;
+            this.gameObject.GetComponent<TrailRenderer>().material.SetColor("_TintColor", TrailColor);
             this.gameObject.GetComponent<TrailRenderer>().time = TrailLastTime;
         }
         void FixedUpdate()
         {
-            if (AddPiece.isSimulating)
+            if (StatMaster.isSimulating)
             {
-                MotionPainterTemP keeper = GameObject.Find("Analyzation Mod").GetComponent<MotionPainterTemP>();
-                float width = keeper.Width;
-                float TrailLastTime = keeper.TrailLastTime;
-                Color TrailColor = keeper.TrailColor;
+                width = keeper.Width;
+                TrailLastTime = keeper.TrailLastTime;
+                TrailColor = keeper.TrailColor;
                 this.gameObject.GetComponent<TrailRenderer>().startWidth = width;
                 this.gameObject.GetComponent<TrailRenderer>().endWidth = width;
-                this.gameObject.GetComponent<TrailRenderer>().material.color = TrailColor;
+                this.gameObject.GetComponent<TrailRenderer>().material.SetColor("_TintColor", TrailColor);
                 this.gameObject.GetComponent<TrailRenderer>().time = TrailLastTime;
             }
         }
@@ -207,6 +207,8 @@ namespace Analyzation_Mod
         public int FrameCount = 0;
         public bool isRecording = false;
         public int BlockCount;
+        public float TargetTimeScale = 0;
+        public Key SwitchKey;
         private Queue<string> FramesRecord = new Queue<string>();
         private Queue<string> AllPoses = new Queue<string>();
         private Queue<string> AllRots = new Queue<string>();
@@ -222,6 +224,7 @@ namespace Analyzation_Mod
         {
             StartCoroutine(RecordActivePerSecond());
             StartCoroutine(RecordActivePerMinute());
+            SwitchKey = Keybindings.AddKeybinding("Switch to 0% time scale", new Key((KeyCode.LeftControl), KeyCode.Semicolon));
         }
 
         IEnumerator RecordActivePerSecond()
@@ -259,7 +262,26 @@ namespace Analyzation_Mod
 
         void Update()
         {
-            if (!AddPiece.isSimulating)
+            if (SwitchKey.Pressed())
+            {
+                if (Time.timeScale != 0)
+                {
+                    TargetTimeScale = Time.timeScale;
+                    Time.timeScale = 0;
+                    FindObjectOfType<TimeSlider>().delegateTimeScale = 0;
+                    GameObject.Find("TimeScale/Handle").GetComponent<TimeSliderObject>().SetPercentage(0);
+                }
+                else
+                {
+                    Time.timeScale = TargetTimeScale;
+                    FindObjectOfType<TimeSlider>().delegateTimeScale = TargetTimeScale;
+                    GameObject.Find("TimeScale/Handle").GetComponent<TimeSliderObject>().SetPercentage(TargetTimeScale / 2);
+                    //Camera.main.GetComponent<MouseOrbit>().focusObject = Camera.main.transform;
+                }
+            }
+
+
+            if (!StatMaster.isSimulating)
             {
                 if (isRecording)
                 {
@@ -311,17 +333,17 @@ namespace Analyzation_Mod
                         BraceAPos[BlockCount] = Vector3.zero;
                         BraceBPos[BlockCount] = Vector3.zero;
                     }
-                    if(block.GetComponentInChildren<FireController>())
+                    if (block.GetComponentInChildren<FireController>())
                     {
                         IsOnFire[BlockCount] = block.GetComponentInChildren<FireController>().onFire;
                     }
                     else { IsOnFire[BlockCount] = false; }
-                                        
-                    if(FrameCount>2)
+
+                    if (FrameCount > 2)
                     {
                         HasExploded[BlockCount] = PreviousBlockID[BlockCount] != block.GetComponent<MachineTrackerMyId>().myId;
                     }
-                        PreviousBlockID[BlockCount] = block.GetComponent<MachineTrackerMyId>().myId;
+                    PreviousBlockID[BlockCount] = block.GetComponent<MachineTrackerMyId>().myId;
 
                     ++BlockCount;
                 }
@@ -353,12 +375,12 @@ namespace Analyzation_Mod
             while (AllPoses.Count != 0)
             {
                 FramesRecord.Enqueue(
-                    "Position#" + AllPoses.Dequeue() + 
-                    "#Rotations#" + AllRots.Dequeue() + 
-                    "#Braceful#" + AllBraceBools.Dequeue() + 
-                    "#Braceful Start Position#" + AllBraceAPoses.Dequeue() + 
-                    "#Braceful End Position#" + AllBraceBPoses.Dequeue() + 
-                    "#Fire Status#" + AllFireBools.Dequeue() + 
+                    "Position#" + AllPoses.Dequeue() +
+                    "#Rotations#" + AllRots.Dequeue() +
+                    "#Braceful#" + AllBraceBools.Dequeue() +
+                    "#Braceful Start Position#" + AllBraceAPoses.Dequeue() +
+                    "#Braceful End Position#" + AllBraceBPoses.Dequeue() +
+                    "#Fire Status#" + AllFireBools.Dequeue() +
                     "#Is this exploding#" + AllExplodedBools.Dequeue()
                     );
             }
@@ -436,7 +458,7 @@ namespace Analyzation_Mod
             {
                 try
                 {
-                    if (AddPiece.isSimulating)
+                    if (StatMaster.isSimulating)
                     {
                         TheFileName = args[0];
                         LoadedFrameCount = int.Parse(args[0].Split('-')[1].Trim());
@@ -460,7 +482,7 @@ namespace Analyzation_Mod
             {
                 try
                 {
-                    if (AddPiece.isSimulating)
+                    if (StatMaster.isSimulating)
                     {
                         TheFileName = args[0];
                         LoadedFrameCount = int.Parse(args[0].Split('-')[1].Trim());
@@ -496,7 +518,7 @@ namespace Analyzation_Mod
             {
                 try
                 {
-                    if (isReplayingInSpecialMode ^ isReplaying)
+                    if (isReplayingInSpecialMode || isReplaying)
                     {
                         isReplayingInSpecialMode = false;
                         isReplaying = false;
@@ -515,7 +537,7 @@ namespace Analyzation_Mod
         }
         void Update()
         {
-            if (!AddPiece.isSimulating) { isReplaying = false; isReplayingInSpecialMode = false; }
+            if (!StatMaster.isSimulating) { isReplaying = false; isReplayingInSpecialMode = false; }
             if (Input.GetKey(KeyCode.KeypadPlus) && isReplayingInSpecialMode) { FrameCount += ReplaySpeed; }
             if (Input.GetKey(KeyCode.KeypadMinus) && isReplayingInSpecialMode) { FrameCount -= ReplaySpeed; }
             try
@@ -526,7 +548,7 @@ namespace Analyzation_Mod
             catch { }
             if (FrameCount < 0) { FrameCount = 0; }
 
-            if (isReplaying ^ isReplayingInSpecialMode)
+            if (isReplaying || isReplayingInSpecialMode)
             {
                 if (FrameCount < FramesRecord.Length - 1)
                 {
@@ -630,7 +652,18 @@ namespace Analyzation_Mod
         public Key YAxisNegativeKey;
         public Key ZAxisPositiveKey;
         public Key ZAxisNegativeKey;
+        public Key SeeTheConnection;
+
+        public bool RecordingG = false;
+        public Queue<float> GQueue = new Queue<float>();
+        public List<float> GList = new List<float>();
+        private float timer = 0;
+        private GameObject StartingBlock;
+        private Vector3 LastFrameSpeed;
+
         private float MaxSize = 10;
+        public bool ShowingConnection = false;
+        private int FixUpdated = 0;
         void Start()
         {
             XAxisPositiveKey = Keybindings.AddKeybinding("X + ", new Key(KeyCode.KeypadPlus, KeyCode.Keypad1));
@@ -639,6 +672,7 @@ namespace Analyzation_Mod
             YAxisNegativeKey = Keybindings.AddKeybinding("Y - ", new Key(KeyCode.KeypadMinus, KeyCode.Keypad2));
             ZAxisPositiveKey = Keybindings.AddKeybinding("Z + ", new Key(KeyCode.KeypadPlus, KeyCode.Keypad3));
             ZAxisNegativeKey = Keybindings.AddKeybinding("Z - ", new Key(KeyCode.KeypadMinus, KeyCode.Keypad3));
+            SeeTheConnection = Keybindings.AddKeybinding("Showing Connections", new Key(KeyCode.LeftControl, KeyCode.Tab));
             XMultiplyer = 1;
             YMultiplyer = 1;
             ZMultiplyer = 1;
@@ -647,9 +681,9 @@ namespace Analyzation_Mod
             PZMultiplyer = 1;
             Commands.RegisterCommand("MaxAnalyzationSize", (args, notUses) =>
             {
-                if(float.TryParse(args[0],out MaxSize))
+                if (float.TryParse(args[0], out MaxSize))
                 {
-                    return MaxSize + "will be your max size for analyzing.";
+                    return MaxSize + " will be your max size for analyzing.";
                 }
                 else
                 {
@@ -658,29 +692,109 @@ namespace Analyzation_Mod
 
             }, "Set the max multiplyer of Analyzation");//Replay
 
+            Commands.RegisterCommand("RecordOverload", (args, notUses) =>
+            {
+                if (StatMaster.isSimulating)
+                {
+                    StartingBlock = Machine.Active().SimulationMachine.GetComponentInChildren<StartingBlockTag>().gameObject;
+                    RecordingG = true;
+                    return "Record Started";
+                }
+                else
+                {
+                    return "Please start it under simulation mode!";
+                }
+
+            }, "Record the overload.");//Replay
+
+            Commands.RegisterCommand("StopRecordOverload", (args, notUses) =>
+            {
+                if (RecordingG)
+                {
+                    RecordingG = false;
+                    FixUpdated = 0;
+                    EndingRecordingG();
+                    return "Record Stopped";
+                }
+                else
+                {
+                    return "Not Recording!";
+                }
+
+            }, "Stop to Record the overload.");//Replay
+
             Commands.RegisterCommand("TotalMass", (args, notUses) =>
             {
                 float totalMass = 0;
-                if (!AddPiece.isSimulating) return "Must check under simulation!";
+                if (!StatMaster.isSimulating) return "Must check under simulation!";
                 foreach (Transform block in Machine.Active().SimulationMachine)
                 {
-                    
-                        try
+
+                    try
+                    {
+                        if (!block.GetComponent<Rigidbody>().isKinematic)
                         {
-                            if (!block.GetComponent<Rigidbody>().isKinematic)
-                            {
-                                totalMass += block.GetComponent<Rigidbody>().mass;
-                            }
+                            totalMass += block.GetComponent<Rigidbody>().mass;
                         }
-                        catch { }
-                        }
+                    }
+                    catch { }
+                }
                 return totalMass + " is your total mass.";
             }, "Check the mass of your creation");//Replay
+
+            Commands.RegisterCommand("TotalMass", (args, notUses) =>
+            {
+                float totalMass = 0;
+                if (!StatMaster.isSimulating) return "Must check under simulation!";
+                foreach (Transform block in Machine.Active().SimulationMachine)
+                {
+
+                    try
+                    {
+                        if (!block.GetComponent<Rigidbody>().isKinematic)
+                        {
+                            totalMass += block.GetComponent<Rigidbody>().mass;
+                        }
+                    }
+                    catch { }
+                }
+                return totalMass + " is your total mass.";
+            }, "Check the mass of your creation");//Replay
+
+            Commands.RegisterCommand("使选择持续半透明", (args, notUses) =>
+            {
+                if (StatMaster.isSimulating) return "Must check under building!";
+                foreach (Transform block in GameObject.Find("MACHINE - Selected Blocks").transform)
+                {
+                    try
+                    {
+                        if (!block.GetComponent<搞得你半透明>())
+                        {
+                            block.gameObject.AddComponent<搞得你半透明>();
+                        }
+                    }
+                    catch { return "cuowu!"; }
+                }
+                return "啊";
+            }, "使所选模块透明化");//Replay
+
+            Commands.RegisterCommand("关闭使选择持续半透明", (args, notUses) =>
+            {
+                foreach (搞得你半透明 aha in FindObjectsOfType<搞得你半透明>())
+                {
+                    try
+                    {
+                        aha.gaoshi = false;
+                    }
+                    catch { return "啊a"; }
+                }
+                return "啊";
+            }, "使所有模块的透明化消失");//Replay
         }
 
         void FixedUpdate()
         {
-            if (!AddPiece.isSimulating && GameObject.Find("Building Machine"))
+            if (!StatMaster.isSimulating && GameObject.Find("Building Machine"))
             {
 
                 if (XAxisPositiveKey.IsDown())
@@ -697,35 +811,209 @@ namespace Analyzation_Mod
                 }
                 if (XAxisNegativeKey.IsDown())
                 {
-                    XMultiplyer /= 1 + Mathf.Min(0.07f, 0.07f * Mathf.Min(1, ((XMultiplyer)) / MaxSize));
+                    XMultiplyer *= 1 / (1.0f + (float)Math.Pow((XMultiplyer / MaxSize), 2.0f));
+                    //+ Mathf.Min(0.07f, 0.07f * Mathf.Min(1, ((XMultiplyer)) / MaxSize));
                 }
                 if (YAxisNegativeKey.IsDown())
                 {
-                    YMultiplyer /= 1 + Mathf.Min(0.07f, 0.07f * Mathf.Min(1, ((YMultiplyer)) / MaxSize));
+                    YMultiplyer *= 1 / (1.0f + (float)Math.Pow((YMultiplyer / MaxSize), 2.0f));
                 }
                 if (ZAxisNegativeKey.IsDown())
                 {
-                    ZMultiplyer /= 1 + Mathf.Min(0.07f, 0.07f * Mathf.Min(1, ((ZMultiplyer)) / MaxSize));
+                    ZMultiplyer *= 1 / (1.0f + (float)Math.Pow((ZMultiplyer / MaxSize), 2.0f));
                 }
-                XMultiplyer = Mathf.Clamp(XMultiplyer,1,10);
+                XMultiplyer = Mathf.Clamp(XMultiplyer, 1, 10);
                 YMultiplyer = Mathf.Clamp(YMultiplyer, 1, 10);
                 ZMultiplyer = Mathf.Clamp(ZMultiplyer, 1, 10);
                 try
                 {
+                    float fdt = Time.fixedDeltaTime * 3;
                     foreach (Transform tr in Machine.Active().BuildingMachine)
                     {
-                        tr.localPosition = new Vector3(
+                        tr.localPosition = Vector3.Lerp(tr.localPosition, new Vector3(
                             (tr.localPosition.x / PXMultiplyer) * XMultiplyer,
                             (tr.localPosition.y / PYMultiplyer) * YMultiplyer,
                             (tr.localPosition.z / PZMultiplyer) * ZMultiplyer
-                            );
+                            ), fdt);
                     }
-                    PXMultiplyer = XMultiplyer;
-                    PYMultiplyer = YMultiplyer;
-                    PZMultiplyer = ZMultiplyer;
+                    PXMultiplyer = Mathf.Lerp(PXMultiplyer, XMultiplyer, fdt);
+                    PYMultiplyer = Mathf.Lerp(PYMultiplyer, YMultiplyer, fdt);
+                    PZMultiplyer = Mathf.Lerp(PZMultiplyer, ZMultiplyer, fdt);
                 }
                 catch { }
             }
+
+            if (RecordingG)
+            {
+                ++FixUpdated;
+                if (!StatMaster.isSimulating)
+                {
+                    RecordingG = false;
+                    EndingRecordingG();
+                    Debug.Log("Record Stopped.");
+                    FixUpdated = 0;
+                }
+                else if (FixUpdated == 9)
+                {
+                    FixUpdated = 0;
+                    Rigidbody rb = StartingBlock.GetComponent<Rigidbody>();
+                    GQueue.Enqueue((((rb.velocity - LastFrameSpeed) * (Time.fixedDeltaTime)) / Physics.gravity.y).magnitude);
+                    timer += Time.fixedDeltaTime;
+                    LastFrameSpeed = rb.velocity;
+                }
+            }
+        }
+
+        void Update()
+        {
+
+            if (SeeTheConnection.Pressed() && StatMaster.isSimulating)
+            {
+                ShowCollider();
+            }
+            /*if(Input.GetKey(KeyCode.L))
+            {
+                foreach(ConfigurableJoint cf in Machine.Active().SimulationMachine.GetComponentsInChildren<ConfigurableJoint>())
+                {
+                    Destroy(cf);
+                }
+            }*/
+        }
+
+        void EndingRecordingG()
+        {
+            if (GQueue.Count == 0) return;
+            DateTime dt = new DateTime();
+            dt = (System.DateTime.Now);
+            for (int i = 0; i < GQueue.Count; ++i)
+            {
+                GList.Add(GQueue.Dequeue());
+            }
+            string Everything = "";
+            float Frame = 0;
+            for (int i = 0; i < GList.Count - 1; ++i)
+            {
+                Everything += Frame + "," + (GList[i] + GList[Mathf.Clamp(++i, 0, GList.Count - 1)] + GList[Mathf.Clamp(i += 2, 0, GList.Count - 1)] + GList[Mathf.Clamp(--i, 0, GList.Count - 1)] + GList[Mathf.Clamp(i -= 2, 0, GList.Count - 1)]) / 5 + "\r\n";
+                Frame += 0.1f;
+            }
+            string Filename = Application.dataPath + "/SavedMachines/" + dt.ToLongTimeString().Replace(':', ' ') + ".csv";
+            File.WriteAllText(Filename, Everything);
+        }
+
+        /*void OnGUI()
+        {
+            GameObject GHT = GameObject.Find("GodHandTool");
+            if (GHT != null)
+            {
+                    Debug.Log(GameObject.Find("Main Camera").GetComponent<Camera>().WorldToScreenPoint(GHT.GetComponent<DragRigidbody>().ray.origin).y);
+                    GUI.Label(
+                        new Rect(
+                            GameObject.Find("Main Camera").GetComponent<Camera>().WorldToScreenPoint(GHT.GetComponent<DragRigidbody>().ray.origin).x,
+                            Screen.height / 2 - GameObject.Find("Main Camera").GetComponent<Camera>().WorldToScreenPoint(GHT.GetComponent<DragRigidbody>().ray.origin).y,
+                            40, 40), GHT.GetComponent<DragRigidbody>().springJoint.spring + "N");
+
+            }
+        }*/
+        void ShowCollider()
+        {
+            ShowingConnection = !ShowingConnection;
+            if (ShowingConnection)
+            {
+                foreach (Transform to in Machine.Active().SimulationMachine)
+                {
+
+                    if (to.GetComponent<Renderer>())
+                    {
+                        to.GetComponent<Renderer>().material.shader = Shader.Find("FX/Glass/Stained BumpDistort");
+                    }
+                    foreach (Transform toc in to)
+                    {
+                        if (toc.name.Contains("Joint") && !toc.Find("JointIndicator"))
+                        {
+                            GameObject c = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                            DestroyImmediate(c.GetComponent<Collider>());
+                            DestroyImmediate(c.GetComponent<Rigidbody>());
+                            c.name = "JointIndicator";
+                            c.transform.SetParent(toc);
+                            c.transform.position = to.position;
+
+                            float MAX = Mathf.Max(to.transform.localScale.x, to.transform.localScale.y, to.transform.localScale.z);
+                            try
+                            {
+                                c.transform.localScale = new Vector3(MAX * (toc.GetComponent<BoxCollider>().size.x / to.transform.localScale.x), MAX * (toc.GetComponent<BoxCollider>().size.y / to.transform.localScale.y), MAX * (toc.GetComponent<BoxCollider>().size.z / to.transform.localScale.z));
+                            }
+                            catch { }
+
+                        }
+                    }
+                }
+
+            }
+            else
+            {
+                foreach (Transform to in Machine.Active().SimulationMachine)
+                {
+                    if (to.GetComponent<Renderer>())
+                    {
+                        to.GetComponent<Renderer>().material.shader = Shader.Find("Diffuse");
+                    }
+                    if (to.name == "JointIndicator")
+                    {
+                        Destroy(to);
+                    }
+                }
+            }
+        }
+    }
+    public class MachineAnalyzer_Connection : MonoBehaviour
+    {
+        public float ColorShowing = 0;
+
+
+        void FixedUpdate()
+        {
+            if (StatMaster.isSimulating)
+            {
+                ColorShowing += Time.fixedDeltaTime;
+                foreach (Joint JTM in this.GetComponent<GenericBlock>().jointsToMe)
+                {
+                    try
+                    {
+                        JTM.gameObject.GetComponentInParent<MachineTrackerMyId>().GetComponent<MeshRenderer>().material.color = Color.Lerp(JTM.gameObject.GetComponentInParent<MachineTrackerMyId>().GetComponent<MeshRenderer>().material.color, Color.red, ColorShowing);
+                    }
+                    catch { }
+                }
+                foreach (Rigidbody IJT in this.GetComponent<GenericBlock>().iJointTo)
+                {
+                    try
+                    {
+                        IJT.GetComponentInParent<MachineTrackerMyId>().GetComponent<MeshRenderer>().material.color = Color.Lerp(IJT.gameObject.GetComponentInParent<MachineTrackerMyId>().GetComponent<MeshRenderer>().material.color, Color.red, ColorShowing);
+                    }
+                    catch { }
+                }
+
+            }
+        }
+    }
+
+
+    public class 搞得你半透明 : MonoBehaviour
+    {
+        public bool gaoshi = true;
+        private void Update()
+        {
+
+            if (!gaoshi)
+            {
+                gameObject.GetComponent<BlockVisualController>().SetNormal();
+                Destroy(this);
+            }
+            else
+            {
+                gameObject.GetComponent<BlockVisualController>().SetSelected();
+            }
+
+
         }
     }
 }
